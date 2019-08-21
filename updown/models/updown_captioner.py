@@ -5,10 +5,11 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 from allennlp.data import Vocabulary
-from allennlp.nn.beam_search import BeamSearch
 from allennlp.nn.util import add_sentence_boundary_token_ids, sequence_cross_entropy_with_logits
 
 from updown.modules import UpDownCell
+from updown.modules import ConstraintBeamSearch
+from updown.modules import FreeConstraint
 
 
 class UpDownCaptioner(nn.Module):
@@ -81,12 +82,15 @@ class UpDownCaptioner(nn.Module):
 
         # We use beam search to find the most likely caption during inference.
         self._beam_size = beam_size
-        self._beam_search = BeamSearch(
+        self._beam_search = ConstraintBeamSearch(
             self._boundary_index,
             max_steps=max_caption_length,
             beam_size=beam_size,
             per_node_beam_size=beam_size // 2,
         )
+        self._fc = FreeConstraint(vocab_size)
+        self._beam_search.update_parameter(self._fc.select_state_func)
+
         self._max_caption_length = max_caption_length
 
     def forward(
@@ -169,18 +173,12 @@ class UpDownCaptioner(nn.Module):
                 (batch_size,), fill_value=self._boundary_index
             ).long()
 
-            # Add image features as a default argument to match callable signature acceptable by
-            # beam search class (previous predictions and states only).
-            beam_decode_step = functools.partial(self._decode_step, image_features)
-
-            # shape (all_top_k_predictions): (batch_size, beam_size, num_decoding_steps)
+            state_transform = self._fc.get_state_matrix(batch_size, image_features.device)
             # shape (log_probabilities): (batch_size, beam_size)
-            all_top_k_predictions, log_probabilities = self._beam_search.search(
-                start_predictions, states, beam_decode_step
+            best_predictions = self._beam_search.search(
+                self._decode_step, image_features, start_predictions, states, state_transform
             )
 
-            # Pick the first beam as predictions.
-            best_predictions = all_top_k_predictions[:, 0, :]
             output_dict = {"predictions": best_predictions}
 
         return output_dict
@@ -207,19 +205,6 @@ class UpDownCaptioner(nn.Module):
             LSTM states of the :class:`~updown.modules.updown_cell.UpDownCell`. These are
             initialized as zero tensors if not provided (at first time-step).
         """
-
-        # Expand and repeat image features while doing beam search (during inference).
-        if not self.training and image_features.size(0) != previous_predictions.size(0):
-
-            # Add beam dimension and repeat image features.
-            image_features = image_features.unsqueeze(1).repeat(1, self._beam_size, 1, 1)
-            batch_size, beam_size, num_boxes, image_feature_size = image_features.size()
-
-            # shape: (batch_size * beam_size, num_boxes, image_feature_size)
-            image_features = image_features.view(
-                batch_size * beam_size, num_boxes, image_feature_size
-            )
-
         # shape: (batch_size, )
         current_input = previous_predictions
 
@@ -270,7 +255,6 @@ class UpDownCaptioner(nn.Module):
         # shape: (batch_size, )
         target_lengths = torch.sum(target_mask, dim=-1).float()
 
-        # Multiply (length normalized) negative logprobs of the sequence with its length.
         # shape: (batch_size, )
         return target_lengths * sequence_cross_entropy_with_logits(
             logits, targets, target_mask, average=None
