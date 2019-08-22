@@ -143,8 +143,13 @@ class CBSConstraint(object):
         box = self.boxes_h5["boxes"][i]
         box_cls = self.boxes_h5["classes"][i]
         box_score = self.boxes_h5["scores"][i]
-        keep = suppress_parts(box, [self.oi_class_list[cls_] for cls_ in box_cls])
 
+        keep = box_score > 0
+        box = box[keep]
+        box_cls = box_cls[keep]
+        box_score = box_score[keep]
+
+        keep = suppress_parts(box, [self.oi_class_list[cls_] for cls_ in box_cls])
         box = box[keep]
         box_cls = box_cls[keep]
         box_score = box_score[keep]
