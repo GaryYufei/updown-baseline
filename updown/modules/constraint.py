@@ -210,8 +210,9 @@ class CBSConstraint(object):
                     if j in mapping:
                         self.M.add_connect(j, start_addtional_index, group_s1)
                         self.M.add_connect(start_addtional_index, mapping[j], group_s2)
+                        start_addtional_index += 1
                         
-        return self.M.get_matrix()
+        return self.M.get_matrix(), start_addtional_index
             
 class FreeConstraint:
 
