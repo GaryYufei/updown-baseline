@@ -143,7 +143,8 @@ class CBSConstraint(object):
         else:
             group_w = [target]
 
-        return [self._vocabulary.get_token_index(w) for w in group_w]
+        group_w = [self._vocabulary.get_token_index(w) for w in group_w]
+        return [v for v in group_w if v > 0]
 
     def get_state_matrix(self, image_id: int):
         i = self._map[image_id.item()]
