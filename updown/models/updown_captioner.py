@@ -1,5 +1,6 @@
 import functools
 from typing import Dict, List, Tuple, Optional
+import numpy as np
 
 import torch
 from torch import nn
@@ -9,7 +10,6 @@ from allennlp.nn.util import add_sentence_boundary_token_ids, sequence_cross_ent
 
 from updown.modules import UpDownCell
 from updown.modules import ConstraintBeamSearch
-from updown.modules import FreeConstraint
 
 
 class UpDownCaptioner(nn.Module):
@@ -53,6 +53,7 @@ class UpDownCaptioner(nn.Module):
         embedding_size: int,
         hidden_size: int,
         attention_projection_size: int,
+        constraint,
         max_caption_length: int = 20,
         beam_size: int = 1,
     ) -> None:
@@ -88,13 +89,13 @@ class UpDownCaptioner(nn.Module):
             beam_size=beam_size,
             per_node_beam_size=beam_size // 2,
         )
-        self._fc = FreeConstraint(vocab_size)
+        self._fc = constraint
         self._beam_search.update_parameter(self._fc.select_state_func)
 
         self._max_caption_length = max_caption_length
 
     def forward(
-        self, image_features: torch.Tensor, caption_tokens: Optional[torch.Tensor] = None
+        self, image_ids: torch.Tensor, image_features: torch.Tensor, caption_tokens: Optional[torch.Tensor] = None
     ) -> Dict[str, torch.Tensor]:
         r"""
         Given bottom-up image features, maximize the likelihood of paired captions during
@@ -173,7 +174,12 @@ class UpDownCaptioner(nn.Module):
                 (batch_size,), fill_value=self._boundary_index
             ).long()
 
-            state_transform = self._fc.get_state_matrix(batch_size, image_features.device)
+            state_transform_list = []
+            for image_id in image_ids:
+                state_transform = self._fc.get_state_matrix(image_id)
+                state_transform_list.append(state_transform)
+            state_transform = torch.from_numpy(np.concatenate(state_transform_list, axis=0))
+
             # shape (log_probabilities): (batch_size, beam_size)
             best_predictions = self._beam_search.search(
                 self._decode_step, image_features, start_predictions, states, state_transform
