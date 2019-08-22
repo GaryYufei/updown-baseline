@@ -1,4 +1,5 @@
 import numpy as np
+import torch
 
 class cbs_matrix:
 
@@ -34,7 +35,7 @@ class FreeConstraint:
 		self.M.init_matrix(1)
 		self.M.init_row(0)
 		state_transform = torch.from_numpy(self.M.get_matrix()).to(device_id)
-		return state_transform.unsqueeze(0).expand(batch_size, -1, -1, -1)
+		return state_transform.expand(batch_size, -1, -1, -1)
 
 
 

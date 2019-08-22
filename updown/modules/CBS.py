@@ -12,21 +12,6 @@ def enlarge_single_tensor(t, batch_size, state_size, beam_size):
             .expand(batch_size, state_size, beam_size, *last_dims) \
             .reshape(-1, *last_dims)
 
-def enlarge_image_feature(image_feature, batch_size, state_size, beam_size):
-    larged_image_feature = []
-    for t in image_feature:
-        larged_image_feature.append(enlarge_single_tensor(t, batch_size, state_size, beam_size))
-    return tuple(larged_image_feature)
-
-def enlarge_state(state, batch_size, state_size, beam_size):
-    new_state = []
-    for (h, c) in state:
-        new_state.append(
-            (enlarge_single_tensor(h, batch_size, state_size, beam_size), 
-                enlarge_single_tensor(c, batch_size, state_size, beam_size))
-            )
-    return new_state
-
 class ConstraintBeamSearch(nn.Module):
     def __init__(self, end_index, max_steps, beam_size, per_node_beam_size=None):
         super(ConstraintBeamSearch, self).__init__()
@@ -38,25 +23,27 @@ class ConstraintBeamSearch(nn.Module):
 
         self.select_state_func = None
         self.early_stop = True
-
-        self.register_buffer("VERY_NEGATIVE_TENSOR", nn.Parameter(torch.FloatTensor([VERY_NEGATIVE_NUMBER])))
+        
+        self.VERY_NEGATIVE_TENSOR = torch.FloatTensor([VERY_NEGATIVE_NUMBER])
 
     def update_parameter(self, select_state_func, early_stop=True):
         self.select_state_func = select_state_func
         self.early_stop = early_stop
 
-    def forward(self, step_func, image_feature, start_predictions, start_state, state_transform):
+    def search(self, step_func, image_feature, start_predictions, start_state, state_transform):
         assert self.select_state_func is not None, "accept state function should be set"
         assert state_transform.size(1) == state_transform.size(2)
         self.state_size = state_transform.size(1)
 
-        device_id = self.VERY_NEGATIVE_TENSOR.get_device()
+        device_id = start_predictions.get_device()
+        self.VERY_NEGATIVE_TENSOR = self.VERY_NEGATIVE_TENSOR.to(device_id)
         predictions = []
         backpointers = []
 
-        batch_size = image_feature[0].size(0)
+        batch_size = start_predictions.size(0)
 
         start_class_log_probabilities, state = step_func(image_feature, start_predictions, start_state)
+        self.num_classes = start_class_log_probabilities.size(-1)
         state_prediction = start_class_log_probabilities \
                                 .view(batch_size, 1, self.num_classes) \
                                 .expand(batch_size, self.state_size, self.num_classes)
@@ -78,8 +65,8 @@ class ConstraintBeamSearch(nn.Module):
         log_probs_after_end = torch.FloatTensor(1, self.num_classes).fill_(VERY_NEGATIVE_NUMBER).to(device_id)
         log_probs_after_end[:, self._end_index] = 0.
 
-        state = enlarge_state(state, batch_size, self.state_size, self.beam_size)
-        image_feature = enlarge_image_feature(image_feature, batch_size, self.state_size, self.beam_size)
+        state = {key: enlarge_single_tensor(value, batch_size, self.state_size, self.beam_size) for (key, value) in state.items()}
+        image_feature = enlarge_single_tensor(image_feature, batch_size, self.state_size, self.beam_size)
 
         step_state_mask = state_transform \
                                 .view(batch_size, self.state_size, self.state_size, 1, self.num_classes) \
@@ -164,7 +151,7 @@ class ConstraintBeamSearch(nn.Module):
                           gather(1, expanded_backpointer).\
                           reshape(batch_size * self.state_size * self.beam_size, *last_dims)
 
-            state = [(track_back_state(h), track_back_state(c)) for (h, c) in state]
+            state = {key: track_back_state(value) for (key, value) in state.items()}
 
         # Reconstruct the sequences.
         # shape: [(batch_size, beam_size, 1)]
