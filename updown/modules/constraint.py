@@ -87,6 +87,7 @@ class CBSConstraint(object):
         self.features_h5path = features_h5path
         self.topk = topk
         self._vocabulary = vocabulary
+        self._pad_index = vocabulary.get_token_index("@@UNKNOWN@@")
         self.M = cbs_matrix(self._vocabulary.get_vocab_size())
 
         self.boxes_h5 = h5py.File(self.features_h5path, "r")
@@ -144,7 +145,7 @@ class CBSConstraint(object):
             group_w = [target]
 
         group_w = [self._vocabulary.get_token_index(w) for w in group_w]
-        return [v for v in group_w if v > 0]
+        return [v for v in group_w if not (v == self._pad_index)]
 
     def get_state_matrix(self, image_id: int):
         i = self._map[image_id.item()]
