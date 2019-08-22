@@ -143,7 +143,7 @@ class CBSConstraint(object):
         else:
             group_w = [target]
 
-        return group_w
+        return [self._vocabulary.get_token_index(w) for w in group_w]
 
     def get_state_matrix(self, image_id: int):
         i = self._map[image_id.item()]
@@ -183,7 +183,7 @@ class CBSConstraint(object):
         level_mapping = [{3:5, 2:6}, {1:6, 3:4}, {1:5, 2:4}]
         for i, target in enumerate(candidates):
             if ' ' not in target:
-                group_w = [self._vocabulary.get_token_index(w) for w in self.get_word_set(target)]
+                group_w = self.get_word_set(target)
 
                 self.M.add_connect(0, i + 1, group_w)
                 self.M.add_connect(i + 4, 7, group_w)
