@@ -30,7 +30,7 @@ class ConstraintBeamSearch(nn.Module):
         self.select_state_func = select_state_func
         self.early_stop = early_stop
 
-    def search(self, step_func, image_feature, start_predictions, start_state, state_transform):
+    def search(self, step_func, image_feature, start_predictions, start_state, state_transform, image_ids):
         assert self.select_state_func is not None, "accept state function should be set"
         assert state_transform.size(1) == state_transform.size(2)
         self.state_size = state_transform.size(1)
@@ -178,4 +178,4 @@ class ConstraintBeamSearch(nn.Module):
         all_predictions = torch.cat(list(reversed(reconstructed_predictions)), 2)
         all_predictions = all_predictions.view(batch_size, self.state_size, self.beam_size, -1)
 
-        return self.select_state_func(all_predictions)
+        return self.select_state_func(all_predictions, last_log_probabilities, image_ids)

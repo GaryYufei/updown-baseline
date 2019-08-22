@@ -136,10 +136,10 @@ class Config(object):
         # These really don't contain the captions, just the image info.
         self._C.DATA.VAL_CAPTIONS = "data/nocaps/nocaps_val_image_info.json"
         self._C.DATA.TEST_CAPTIONS = "data/nocaps/nocaps_test_image_info.json"
-        self._C.DATA.CBS.VAL_OBJECTS = "data/cbs/nocaps_val_tf_faster_rcnn_inception_resnet_v2_atrous_oid_v4_boxes.h5"
-        self._C.DATA.CBS.TEST_OBJECTS = "data/cbs/nocaps_test_tf_faster_rcnn_inception_resnet_v2_atrous_oid_v4_boxes.h5"
-        self._C.DATA.CBS.OPEN_IMAGE_CLS_PATH = "data/cbs/class-descriptions-boxable.csv"
-        self._C.DATA.CBS.OPEN_IMAGE_WORD_FORM = "data/cbs/oi_concepts_to_words.txt"
+        self._C.DATA.CBS_VAL_OBJECTS = "data/cbs/nocaps_val_tf_faster_rcnn_inception_resnet_v2_atrous_oid_v4_boxes.h5"
+        self._C.DATA.CBS_TEST_OBJECTS = "data/cbs/nocaps_test_tf_faster_rcnn_inception_resnet_v2_atrous_oid_v4_boxes.h5"
+        self._C.DATA.CBS_OPEN_IMAGE_CLS_PATH = "data/cbs/class-descriptions-boxable.csv"
+        self._C.DATA.CBS_OPEN_IMAGE_WORD_FORM = "data/cbs/oi_concepts_to_words.txt"
 
         self._C.DATA.MAX_CAPTION_LENGTH = 20
 

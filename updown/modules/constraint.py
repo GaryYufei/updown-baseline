@@ -1,6 +1,7 @@
 import numpy as np
 import torch
 from allennlp.data import Vocabulary
+import h5py
 
 BLACKLIST_CATEGORIES = [
             "Tree",
@@ -49,7 +50,7 @@ replacements = {
   "wood-burning stove": "wood burning stove",
   "kitchen & dining room table": "table",
   "salt and pepper shakers": "salt and pepper",
-  "power plugs and sockets": "power plugs"
+  "power plugs and sockets": "power plugs",
   "luggage and bags": 'luggage'
 }
 
@@ -88,8 +89,8 @@ class CBSConstraint(object):
         self._vocabulary = vocabulary
         self.M = cbs_matrix(self._vocabulary.get_vocab_size())
 
-        self.features_h5 = h5py.File(self.features_h5path, "r")
-        image_id_np = np.array(self.features_h5["image_id"])
+        self.boxes_h5 = h5py.File(self.features_h5path, "r")
+        image_id_np = np.array(self.boxes_h5["image_id"])
         self._map = {
             image_id_np[index]: index for index in range(image_id_np.shape[0])
         }
@@ -98,7 +99,6 @@ class CBSConstraint(object):
         with open(oi_class_path) as out:
             for line in out:
                 self.oi_class_list.append(line.strip().split(',')[1])
-
         self.oi_word_form = {}
         with open(oi_word_form_path) as out:
             for line in out:
@@ -121,14 +121,14 @@ class CBSConstraint(object):
 
         pred = []
         for i, ID in enumerate(imageID):
-            label_list = self.state_mamanger.get_label_set(str(ID))
-            if len(label_list) >= 3:
+            label_num = self.obj_num[ID]
+            if label_num >= 3:
                 # Three labels must be satisfied together
                 pred.append(beam_prediction[i, 7, 0, :])
-            elif len(label_list) >= 2:
+            elif label_num >= 2:
                 # Two labels must be satisfied together
                 pred.append(top_two_beam_prediction[i])
-            elif len(label_list) >= 1:
+            elif label_num >= 1:
                 # one label must be satisfied together
                 pred.append(beam_prediction[i, 1, 0, :])
             else:
@@ -137,13 +137,13 @@ class CBSConstraint(object):
 
         return torch.from_numpy(np.array(pred, dtype=np.int64)).to(beam_score.device)
 
-    def __getitem__(self, image_id: int):
-        i = self._image_ids[image_id]
+    def get_state_matrix(self, image_id: int):
+        i = self._map[image_id.item()]
 
         box = self.boxes_h5["boxes"][i]
         box_cls = self.boxes_h5["classes"][i]
         box_score = self.boxes_h5["scores"][i]
-        keep = suppress_parts(all_box, [self.oi_class_list[cls_] for cls_ in box_cls])
+        keep = suppress_parts(box, [self.oi_class_list[cls_] for cls_ in box_cls])
 
         box = box[keep]
         box_cls = box_cls[keep]
@@ -171,7 +171,7 @@ class CBSConstraint(object):
                 group_w = [self._vocabulary.get_token_index(w) for w in group_w]
                 candidates.append([v for v in group_w if v > 0])
 
-        self.obj_num[image_id] = len(obj_names)
+        self.obj_num[image_id.item()] = len(obj_names)
 
         self.M.init_matrix(8)
         for i in range(8):
