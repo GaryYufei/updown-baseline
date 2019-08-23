@@ -89,7 +89,7 @@ if __name__ == "__main__":
     vocabulary = Vocabulary.from_files(_C.DATA.VOCABULARY)
 
     eval_dataset = EvaluationDataset(
-        image_features_h5path=_C.DATA.TEST_FEATURES if not _A.run_val else _C.DATA.TEST_FEATURES, in_memory=_A.in_memory
+        image_features_h5path=_C.DATA.TEST_FEATURES if not _A.run_val else _C.DATA.VAL_FEATURES, in_memory=_A.in_memory
     )
     eval_dataloader = DataLoader(
         eval_dataset,
