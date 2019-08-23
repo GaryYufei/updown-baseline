@@ -89,7 +89,7 @@ if __name__ == "__main__":
     vocabulary = Vocabulary.from_files(_C.DATA.VOCABULARY)
 
     eval_dataset = EvaluationDataset(
-        image_features_h5path=_C.DATA.TEST_FEATURES, in_memory=_A.in_memory
+        image_features_h5path=_C.DATA.TEST_FEATURES if not _A.run_val else _C.DATA.TEST_FEATURES, in_memory=_A.in_memory
     )
     eval_dataloader = DataLoader(
         eval_dataset,
@@ -100,7 +100,7 @@ if __name__ == "__main__":
     )
 
     if _C.MODEL.USE_CBS:
-        constraint = CBSConstraint(_C.DATA.CBS_TEST_OBJECTS, \
+        constraint = CBSConstraint(_C.DATA.CBS_TEST_OBJECTS if not _A.run_val else _C.DATA.CBS_VAL_OBJECTS, \
             _C.DATA.CBS_OPEN_IMAGE_CLS_PATH, \
             _C.DATA.CBS_OPEN_IMAGE_WORD_FORM, \
             _C.DATA.CBS_CLASS_STRUCTURE_PATH,
@@ -159,7 +159,7 @@ if __name__ == "__main__":
     json.dump(predictions, open(_A.output_path, "w"))
 
     if _A.evalai_submit:
-        evaluator = NocapsEvaluator("val" if args.run_val else "test")
+        evaluator = NocapsEvaluator("val" if _A.run_val else "test")
         evaluation_metrics = evaluator.evaluate(predictions)
 
         print(f"Evaluation metrics for checkpoint {_A.checkpoint_path}:")
