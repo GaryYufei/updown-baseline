@@ -184,7 +184,9 @@ class CBSConstraint(object):
         start_addtional_index = 8
         level_mapping = [{3:5, 2:6}, {1:6, 3:4}, {1:5, 2:4}]
         for i, target in enumerate(candidates):
-            if ' ' not in target:
+            word_list = target.split()
+
+            if len(word_list) == 1:
                 group_w = self.get_word_set(target)
 
                 self.M.add_connect(0, i + 1, group_w)
@@ -194,8 +196,8 @@ class CBSConstraint(object):
                 for j in range(1, 4):
                     if j in mapping:
                         self.M.add_connect(j, mapping[j], group_w)
-            else:
-                [s1, s2] = target.split()[:2]
+            elif len(word_list) == 2:
+                [s1, s2] = word_list
                 group_s1 = self.get_word_set(s1)
                 group_s2 = self.get_word_set(s2)
 
@@ -213,6 +215,29 @@ class CBSConstraint(object):
                         self.M.add_connect(j, start_addtional_index, group_s1)
                         self.M.add_connect(start_addtional_index, mapping[j], group_s2)
                         start_addtional_index += 1
+            elif len(word_list) == 3:
+                [s1, s2, s3] = word_list
+                group_s1 = self.get_word_set(s1)
+                group_s2 = self.get_word_set(s2)
+                group_s3 = self.get_word_set(s3)
+
+                self.M.add_connect(0, start_addtional_index, group_s1)
+                self.M.add_connect(start_addtional_index, start_addtional_index + 1, group_s2)
+                self.M.add_connect(start_addtional_index + 1, i + 1, group_s3)
+                start_addtional_index += 2
+
+                self.M.add_connect(i + 4, start_addtional_index, group_s1)
+                self.M.add_connect(start_addtional_index, start_addtional_index + 1, group_s2)
+                self.M.add_connect(start_addtional_index + 1, 7, group_s3)
+                start_addtional_index += 2
+
+                mapping = level_mapping[i]
+                for j in range(1, 4):
+                    if j in mapping:
+                        self.M.add_connect(j, start_addtional_index, group_s1)
+                        self.M.add_connect(start_addtional_index, start_addtional_index + 1, group_s2)
+                        self.M.add_connect(start_addtional_index + 1, mapping[j], group_s3)
+                        start_addtional_index += 2
                         
         return self.M.get_matrix(), start_addtional_index
             
