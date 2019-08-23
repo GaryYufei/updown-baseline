@@ -2,6 +2,7 @@ import numpy as np
 import torch
 from allennlp.data import Vocabulary
 import h5py
+import json
 
 from anytree import AnyNode
 from anytree.search import findall_by_attr,findall
@@ -104,11 +105,11 @@ def suppress_parts(scores, classes):
     keep = [i for i, (cls, score) in enumerate(zip(classes, scores)) if score > 0.01 and cls not in BLACKLIST_CATEGORIES]
     return keep
 
-def nms(dets, classes, hierarchy, thresh=0.85):
+def nms(dets, classes, hierarchy, thresh=0.5):
     # Non-max suppression of overlapping boxes where score is based on 'height' in the hierarchy,
     # defined as the number of edges on the longest path to a leaf
     
-    scores = [findall(hierarchy, filter_=lambda node: node.LabelName.lower() in (cls))[0].height for cls in classes]
+    scores = [findall(hierarchy, filter_=lambda node: node.LabelName in (cls))[0].height for cls in classes]
     
     x1 = dets[:, 0]
     y1 = dets[:, 1]
@@ -188,10 +189,7 @@ class CBSConstraint(object):
         pred = []
         for i, ID in enumerate(imageID):
             label_num = self.obj_num[ID]
-            if label_num >= 3:
-                # Three labels must be satisfied together
-                pred.append(beam_prediction[i, 7, 0, :])
-            elif label_num >= 2:
+            if label_num >= 2:
                 # Two labels must be satisfied together
                 pred.append(top_two_beam_prediction[i])
             elif label_num >= 1:
