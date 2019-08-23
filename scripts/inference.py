@@ -97,9 +97,10 @@ if __name__ == "__main__":
     )
 
     if _C.MODEL.USE_CBS:
-        constraint = CBSConstraint(_C.DATA.CBS.TEST_OBJECTS, \
-            _C.DATA.CBS.OPEN_IMAGE_CLS_PATH, \
-            _C.DATA.CBS.OPEN_IMAGE_WORD_FORM, \
+        constraint = CBSConstraint(_C.DATA.CBS_TEST_OBJECTS, \
+            _C.DATA.CBS_OPEN_IMAGE_CLS_PATH, \
+            _C.DATA.CBS_OPEN_IMAGE_WORD_FORM, \
+            _C.DATA.CBS_CLASS_STRUCTURE_PATH
             vocabulary)
     else:
         constraint = FreeConstraint(vocabulary.get_vocab_size())

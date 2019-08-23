@@ -3,6 +3,9 @@ import torch
 from allennlp.data import Vocabulary
 import h5py
 
+from anytree import AnyNode
+from anytree.search import findall_by_attr,findall
+
 BLACKLIST_CATEGORIES = [
             "Tree",
             "Building",
@@ -54,6 +57,26 @@ replacements = {
   "luggage and bags": 'luggage'
 }
 
+class OIDictImporter(object):
+    ''' Importer that works on Open Images json hierarchy '''
+    def __init__(self, nodecls=AnyNode):
+        self.nodecls = nodecls
+
+    def import_(self, data):
+        """Import tree from `data`."""
+        return self.__import(data)
+
+
+    def __import(self, data, parent=None):
+        assert isinstance(data, dict)
+        assert "parent" not in data
+        attrs = dict(data)
+        children = attrs.pop("Subcategory", []) + attrs.pop("Part", [])
+        node = self.nodecls(parent=parent, **attrs)
+        for child in children:
+            self.__import(child, parent=node)
+        return node
+
 class cbs_matrix:
 
     def __init__(self, vocab_size):
@@ -76,14 +99,52 @@ class cbs_matrix:
     def get_matrix(self):
         return self.matrix
 
-def suppress_parts(dets, classes):
+def suppress_parts(scores, classes):
     # just remove those 39 words
-    keep = [i for i,cls in enumerate(classes) if cls not in BLACKLIST_CATEGORIES]
+    keep = [i for i, (cls, score) in enumerate(zip(classes, scores)) if score > 0.01 and cls not in BLACKLIST_CATEGORIES]
+    return keep
+
+def nms(dets, classes, hierarchy, thresh=0.85):
+    # Non-max suppression of overlapping boxes where score is based on 'height' in the hierarchy,
+    # defined as the number of edges on the longest path to a leaf
+    
+    scores = [findall(hierarchy, filter_=lambda node: node.LabelName.lower() in (cls))[0].height for cls in classes]
+    
+    x1 = dets[:, 0]
+    y1 = dets[:, 1]
+    x2 = dets[:, 2]
+    y2 = dets[:, 3]
+
+    areas = (x2 - x1 + 1) * (y2 - y1 + 1)
+
+    scores = np.array(scores)
+    order = scores.argsort()
+
+    keep = []
+    while order.size > 0:
+        i = order[0]
+        keep.append(i)
+        xx1 = np.maximum(x1[i], x1[order[1:]])
+        yy1 = np.maximum(y1[i], y1[order[1:]])
+        xx2 = np.minimum(x2[i], x2[order[1:]])
+        yy2 = np.minimum(y2[i], y2[order[1:]])
+
+        w = np.maximum(0.0, xx2 - xx1 + 1)
+        h = np.maximum(0.0, yy2 - yy1 + 1)
+        inter = w * h
+
+        # check the score, objects with smaller or equal number of layers cannot be removed.
+        keep_condition = np.logical_or(scores[order[1:]] <= scores[i], \
+            inter / (areas[i] + areas[order[1:]] - inter) <= thresh)
+
+        inds = np.where(keep_condition)[0]
+        order = order[inds + 1]
+
     return keep
 
 class CBSConstraint(object):
 
-    def __init__(self, features_h5path: str, oi_class_path: str, oi_word_form_path: str, vocabulary: Vocabulary, topk: int = 3):
+    def __init__(self, features_h5path: str, oi_class_path: str, oi_word_form_path: str, class_structure_json_path: str, vocabulary: Vocabulary, topk: int = 3):
         self.features_h5path = features_h5path
         self.topk = topk
         self._vocabulary = vocabulary
@@ -108,6 +169,10 @@ class CBSConstraint(object):
                 self.oi_word_form[items[0]] = items[1].split(',')
 
         self.obj_num = {}
+
+        importer = OIDictImporter()
+        with open(class_structure_json_path) as f:
+            self.class_structure = importer.import_(json.load(f))
 
     def select_state_func(self, beam_prediction, beam_score, imageID):
         max_step = beam_prediction.size(-1)
@@ -154,12 +219,12 @@ class CBSConstraint(object):
         box_cls = self.boxes_h5["classes"][i]
         box_score = self.boxes_h5["scores"][i]
 
-        keep = box_score > 0
+        keep = suppress_parts(box_score, [self.oi_class_list[cls_] for cls_ in box_cls])
         box = box[keep]
         box_cls = box_cls[keep]
         box_score = box_score[keep]
 
-        keep = suppress_parts(box, [self.oi_class_list[cls_] for cls_ in box_cls])
+        keep = nms(box, [self.oi_class_list[cls_] for cls_ in box_cls], self.class_structure)
         box = box[keep]
         box_cls = box_cls[keep]
         box_score = box_score[keep]
