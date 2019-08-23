@@ -161,12 +161,22 @@ class CBSConstraint(object):
         with open(oi_class_path) as out:
             for line in out:
                 self.oi_class_list.append(line.strip().split(',')[1])
+        
+        oov, total = 0, 0
         self.oi_word_form = {}
         with open(oi_word_form_path) as out:
             for line in out:
                 line = line.strip()
                 items = line.split('\t')
-                self.oi_word_form[items[0]] = items[1].split(',')
+                w_list = items[1].split(',')
+                self.oi_word_form[items[0]] = w_list
+
+                for w in w_list:
+                    for ch in w.split():
+                        ch_index = self._vocabulary.get_token_index(ch) 
+                        oov += 1 if ch_index == self._pad_index else 0
+                    total += len(w.split())
+        print("object class word OOV %d / %d = %.2f" % (oov, total, 100 * oov / total))
 
         self.obj_num = {}
 
