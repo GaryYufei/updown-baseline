@@ -18,7 +18,7 @@ from updown.types import Prediction
 from updown.utils.checkpointing import CheckpointManager
 from updown.utils.common import cycle
 from updown.utils.evalai import NocapsEvaluator
-
+from updown.modules import FreeConstraint, CBSConstraint
 
 parser = argparse.ArgumentParser("Train an UpDown Captioner on COCO train2017 split.")
 parser.add_argument(
@@ -146,7 +146,7 @@ if __name__ == "__main__":
     # Use a smaller batch during validation (accounting beam size) to fit in memory.
     val_dataloader = DataLoader(
         val_dataset,
-        batch_size=_C.OPTIM.BATCH_SIZE // _C.MODEL.BEAM_SIZE,
+        batch_size=5 if _C.MODEL.USE_CBS else _C.OPTIM.BATCH_SIZE // _C.MODEL.BEAM_SIZE,
         shuffle=False,
         num_workers=_A.cpu_workers,
         collate_fn=val_dataset.collate_fn,
