@@ -106,6 +106,23 @@ if __name__ == "__main__":
 
     vocabulary = Vocabulary.from_files(_C.DATA.VOCABULARY)
 
+    if _C.MODEL.USE_CBS:
+        with open(_C.DATA.CBS_OPEN_IMAGE_WORD_FORM) as out:
+            for line in out:
+                line = line.strip()
+                items = line.split('\t')
+                for cls_name in items[1].split(','):
+                    for w in cls_name.split():
+                        vocabulary.add_token_to_namespace(w)
+
+        constraint = CBSConstraint(_C.DATA.CBS_VAL_OBJECTS, \
+            _C.DATA.CBS_OPEN_IMAGE_CLS_PATH, \
+            _C.DATA.CBS_OPEN_IMAGE_WORD_FORM, \
+            _C.DATA.CBS_CLASS_STRUCTURE_PATH,
+            vocabulary)
+    else:
+        constraint = FreeConstraint(vocabulary.get_vocab_size())
+        
     train_dataset = TrainingDataset(
         vocabulary,
         image_features_h5path=_C.DATA.TRAIN_FEATURES,
@@ -143,6 +160,7 @@ if __name__ == "__main__":
         attention_projection_size=_C.MODEL.ATTENTION_PROJECTION_SIZE,
         beam_size=_C.MODEL.BEAM_SIZE,
         max_caption_length=_C.DATA.MAX_CAPTION_LENGTH,
+        constraint=constraint
     ).to(device)
 
     if len(_A.gpu_ids) > 1 and -1 not in _A.gpu_ids:
